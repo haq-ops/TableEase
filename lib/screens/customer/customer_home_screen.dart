@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import 'restaurant_detail_screen.dart';
+import 'book_table_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -340,10 +341,20 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       right: 12,
                       bottom: 12,
                       child: ElevatedButton(
+
+
                         onPressed: () {
-                          // Next step: open Book a Table directly.
-                          // For now it opens the detail screen.
-                          _openDetail(id);
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => BookTableScreen(
+                                restaurantId: id,
+                                restaurantName: name,
+                                address: address,
+                                cuisine: cuisine,
+                              ),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           minimumSize: const Size(0, 42),

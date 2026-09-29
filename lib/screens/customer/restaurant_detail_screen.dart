@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
+import 'book_table_screen.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
   // The Firestore id of the restaurant to show
@@ -304,10 +305,21 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: ElevatedButton(
+
                           onPressed: () {
-                            // Next step: open the Book a Table screen
-                            _showMessage('Booking screen is coming next');
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => BookTableScreen(
+                                  restaurantId: widget.restaurantId,
+                                  restaurantName: name,
+                                  address: address,
+                                  cuisine: cuisine,
+                                ),
+                              ),
+                            );
                           },
+
                           child: const Text('Book Table'),
                         ),
                       ),
