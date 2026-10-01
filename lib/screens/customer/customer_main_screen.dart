@@ -3,14 +3,15 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../start/splash_screen.dart';
 import 'customer_home_screen.dart';
+import 'my_bookings_screen.dart';
 
-
+// Holds the 4 customer tabs and the bottom navigation bar.
+// Queue and Profile tabs will show Kokulayasan's screens.
 class CustomerMainScreen extends StatefulWidget {
   // Which tab to open first: 0 Home, 1 Queue, 2 Bookings, 3 Profile
   final int initialTab;
 
   const CustomerMainScreen({super.key, this.initialTab = 0});
-
 
   @override
   State<CustomerMainScreen> createState() => _CustomerMainScreenState();
@@ -25,6 +26,7 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
   Widget build(BuildContext context) {
     final tabs = [
       const CustomerHomeScreen(),
+      // Placeholder until the Queue screen is merged
       _EmptyState(
         icon: Icons.schedule,
         title: 'You are not in any queue',
@@ -32,13 +34,9 @@ class _CustomerMainScreenState extends State<CustomerMainScreen> {
         buttonText: 'Go to Home',
         onPressed: _goToHome,
       ),
-      _EmptyState(
-        icon: Icons.calendar_today_outlined,
-        title: 'No bookings yet',
-        message: 'Your table bookings will appear here.',
-        buttonText: 'Book a table',
-        onPressed: _goToHome,
-      ),
+      // My Bookings (screens 10 and 11)
+      MyBookingsScreen(onGoHome: _goToHome),
+      // Placeholder until the Profile screen is merged
       const _ProfileTab(),
     ];
 
@@ -152,7 +150,7 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-// Simple profile tab with a logout button
+// Simple logout tab, used until the Profile screen is merged
 class _ProfileTab extends StatelessWidget {
   const _ProfileTab();
 
