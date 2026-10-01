@@ -4,16 +4,20 @@ import '../../theme/app_colors.dart';
 import '../start/splash_screen.dart';
 import 'customer_home_screen.dart';
 
-// Holds the 4 customer tabs and the bottom navigation bar
+
 class CustomerMainScreen extends StatefulWidget {
-  const CustomerMainScreen({super.key});
+  // Which tab to open first: 0 Home, 1 Queue, 2 Bookings, 3 Profile
+  final int initialTab;
+
+  const CustomerMainScreen({super.key, this.initialTab = 0});
+
 
   @override
   State<CustomerMainScreen> createState() => _CustomerMainScreenState();
 }
 
 class _CustomerMainScreenState extends State<CustomerMainScreen> {
-  int _currentTab = 0;
+  late int _currentTab = widget.initialTab;
 
   void _goToHome() => setState(() => _currentTab = 0);
 

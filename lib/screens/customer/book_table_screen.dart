@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import 'payment_screen.dart';
+import 'booking_confirmed_screen.dart';
 
 class BookTableScreen extends StatefulWidget {
   final String restaurantId;
@@ -179,8 +180,14 @@ class _BookTableScreenState extends State<BookTableScreen> {
         return;
       }
 
-      await _showSuccessDialog();
-      if (mounted) Navigator.pop(context);
+      // Weekday: show the full Booking Confirmed screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              BookingConfirmedScreen(bookingId: newBooking.id),
+        ),
+      );
     } catch (e) {
       _showMessage('Could not save your booking. Please try again.');
     } finally {

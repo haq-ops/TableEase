@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import 'add_card_sheet.dart';
+import 'booking_confirmed_screen.dart';
 
 class PaymentScreen extends StatefulWidget {
   // The booking that needs a deposit
@@ -166,8 +167,14 @@ class _PaymentScreenState extends State<PaymentScreen> {
       });
 
       if (!mounted) return;
-      await _showSuccessDialog(payLater);
-      if (mounted) Navigator.pop(context);
+      // Show the full Booking Confirmed screen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) =>
+              BookingConfirmedScreen(bookingId: widget.bookingId),
+        ),
+      );
     } catch (e) {
       debugPrint('PAYMENT ERROR: $e');
       _showMessage('Payment failed. Please try again.');
