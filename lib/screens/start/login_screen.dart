@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../customer/customer_main_screen.dart';
+import '../staff/staff_main_screen.dart';
 import 'create_account_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -97,8 +98,15 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (context) => const CustomerMainScreen()),
               (route) => false,
         );
+      } else if (widget.role == 'staff') {
+        if (!mounted) return;
+        // Open Staff Home and remove Login from the back history
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const StaffMainScreen()),
+              (route) => false,
+        );
       } else {
-        // Staff and admin home screens are built by other members
+        // Admin home screen is built by another member
         _showMessage('Login successful');
       }
     } on FirebaseAuthException catch (e) {
