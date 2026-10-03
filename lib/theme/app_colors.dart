@@ -11,4 +11,7 @@ class AppColors {
   static const Color success = Color(0xFF16A34A); // green: free, approve
   static const Color warning = Color(0xFFD97706); // amber: full, waiting
   static const Color danger = Color(0xFFDC2626); // red: reject, remove
+  static const Color statusFree = Color(0xFF10B981);
+  static const Color statusOccupied = Color(0xFFEF4444);
+  static const Color statusReserved = Color(0xFFF59E0B);
 }
