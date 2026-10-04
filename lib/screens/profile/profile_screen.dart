@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../theme/app_colors.dart';
 import '../start/splash_screen.dart';
 
@@ -55,6 +58,7 @@ class ProfileScreen extends StatelessWidget {
           final email = (data['email'] ?? user?.email ?? '').toString();
           final phone = (data['phone'] ?? '').toString();
           final role = (data['role'] ?? 'customer').toString();
+          final photo = (data['photo'] ?? '').toString();
           final created = data['createdAt'] as Timestamp?;
 
           return ListView(
@@ -70,28 +74,47 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Avatar, name and role
+              // Photo (or initials), name and role
               Center(
                 child: Column(
                   children: [
-                    Container(
-                      width: 84,
-                      height: 84,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryLight,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Text(
-                        _initials(name, email),
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
+                    GestureDetector(
+                      onTap: () => _photoOptions(context, photo.isNotEmpty),
+                      child: Stack(
+                        children: [
+                          _avatar(photo, _initials(name, email)),
+
+                          // Small camera button on the photo
+                          Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppColors.primary,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: AppColors.background,
+                                  width: 2,
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.camera_alt,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Tap the photo to change it',
+                      style: TextStyle(fontSize: 11, color: AppColors.textGrey),
+                    ),
+                    const SizedBox(height: 10),
                     Text(
                       name.isEmpty ? 'No name yet' : name,
                       style: const TextStyle(
@@ -202,7 +225,8 @@ class ProfileScreen extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                'This removes your profile and saved cards. It cannot be undone.',
+                'This removes your profile, photo and saved cards. '
+                    'It cannot be undone.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 11, color: AppColors.textGrey),
               ),
@@ -210,6 +234,44 @@ class ProfileScreen extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+
+  // Round photo, or the initials when there is no photo
+  Widget _avatar(String photo, String initials) {
+    Widget child = Text(
+      initials,
+      style: const TextStyle(
+        fontSize: 32,
+        fontWeight: FontWeight.bold,
+        color: AppColors.primary,
+      ),
+    );
+
+    if (photo.isNotEmpty) {
+      try {
+        child = Image.memory(
+          base64Decode(photo),
+          width: 96,
+          height: 96,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        );
+      } catch (e) {
+        // Broken photo data: keep showing the initials
+      }
+    }
+
+    return Container(
+      width: 96,
+      height: 96,
+      alignment: Alignment.center,
+      clipBehavior: Clip.antiAlias,
+      decoration: const BoxDecoration(
+        color: AppColors.primaryLight,
+        shape: BoxShape.circle,
+      ),
+      child: child,
     );
   }
 
@@ -247,6 +309,143 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Shows the photo choices: camera, gallery or remove
+  Future<void> _photoOptions(BuildContext context, bool hasPhoto) async {
+    final choice = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Take a photo'),
+              onTap: () => Navigator.pop(context, 'camera'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_outlined,
+                color: AppColors.primary,
+              ),
+              title: const Text('Choose from gallery'),
+              onTap: () => Navigator.pop(context, 'gallery'),
+            ),
+            if (hasPhoto)
+              ListTile(
+                leading: const Icon(
+                  Icons.delete_outline,
+                  color: AppColors.danger,
+                ),
+                title: const Text(
+                  'Remove photo',
+                  style: TextStyle(color: AppColors.danger),
+                ),
+                onTap: () => Navigator.pop(context, 'remove'),
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (choice == null || !context.mounted) return;
+
+    if (choice == 'remove') {
+      await _removePhoto(context);
+    } else {
+      await _pickPhoto(
+        context,
+        choice == 'camera' ? ImageSource.camera : ImageSource.gallery,
+      );
+    }
+  }
+
+  // UPDATE: picks a photo, makes it small and saves it in the profile
+  Future<void> _pickPhoto(BuildContext context, ImageSource source) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      // Resize and compress so the photo stays small
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 400,
+        maxHeight: 400,
+        imageQuality: 70,
+      );
+      if (picked == null) return; // the user cancelled
+
+      final bytes = await picked.readAsBytes();
+
+      // A Firestore document must stay under 1 MB
+      if (bytes.length > 700 * 1024) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('This photo is too large. Please choose another.'),
+          ),
+        );
+        return;
+      }
+
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'photo': base64Encode(bytes),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Profile photo updated')),
+      );
+    } catch (e) {
+      debugPrint('PHOTO ERROR: $e');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not update the photo. Please try again.'),
+        ),
+      );
+    }
+  }
+
+  // DELETE: removes the profile photo
+  Future<void> _removePhoto(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'photo': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Profile photo removed')),
+      );
+    } catch (e) {
+      debugPrint('REMOVE PHOTO ERROR: $e');
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Could not remove the photo. Please try again.'),
+        ),
+      );
+    }
   }
 
   // UPDATE: opens the edit sheet
@@ -329,7 +528,7 @@ class ProfileScreen extends StatelessWidget {
         await card.reference.delete();
       }
 
-      // DELETE: the profile document
+      // DELETE: the profile document (this also removes the photo)
       await userDoc.delete();
 
       // DELETE: the login account
@@ -561,7 +760,7 @@ class _DeleteAccountDialogState extends State<_DeleteAccountDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Your profile and saved cards will be removed. '
+            'Your profile, photo and saved cards will be removed. '
                 'Enter your password to confirm.',
             style: TextStyle(fontSize: 13, color: AppColors.textGrey),
           ),
