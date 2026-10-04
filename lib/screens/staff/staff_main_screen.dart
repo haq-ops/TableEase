@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'staff_tables_screen.dart';
 import 'staff_queue_screen.dart';
+import 'staff_bookings_screen.dart';
 
 class StaffMainScreen extends StatefulWidget {
   const StaffMainScreen({super.key});
@@ -15,7 +16,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   final List<Widget> _tabs = const [
     StaffTablesScreen(),
     StaffQueueScreen(),
-    _Placeholder('Bookings'),
+    StaffBookingsScreen(),
     _Placeholder('Profile'),
   ];
 
