@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import 'restaurant_detail_screen.dart';
 import 'book_table_screen.dart';
+import 'notifications_screen.dart';
 
 class CustomerHomeScreen extends StatefulWidget {
   const CustomerHomeScreen({super.key});
@@ -103,15 +104,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.notifications_none),
-                  color: AppColors.textDark,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('No new notifications')),
-                    );
-                  },
-                ),
+
+                const NotificationBell(),
+
               ],
             ),
           ),
