@@ -90,21 +90,20 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      if (!mounted) return;
+
       if (widget.role == 'customer') {
-        if (!mounted) return;
-        // Open Customer Home and remove Login from the back history
+        // Open the customer app and clear the login screens
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const CustomerMainScreen()),
               (route) => false,
         );
       } else {
-        // Staff and admin home screens are built by other members
-        _showMessage('Login successful');
+        // Staff and Admin home screens are connected after they are merged
+        _showMessage('Login successful. $_roleName screens are coming next.');
       }
     } on FirebaseAuthException catch (e) {
       _showMessage(_errorText(e.code));
-    } catch (e) {
-      _showMessage('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -251,15 +250,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Email field
+                      // Email field (empty box, label above)
                       _label('EMAIL'),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. kasun.perera@gmail.com',
-                        ),
+                        decoration: const InputDecoration(),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter your email';
@@ -272,13 +269,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Password field with Show / Hide
+                      // Password field with Show / Hide (empty box, label above)
                       _label('PASSWORD'),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _hidePassword,
                         decoration: InputDecoration(
-                          hintText: 'Enter your password',
                           suffixIcon: TextButton(
                             onPressed: () {
                               setState(() => _hidePassword = !_hidePassword);
