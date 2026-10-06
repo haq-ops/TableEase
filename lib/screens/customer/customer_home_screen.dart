@@ -287,9 +287,9 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
             // Photo with tags and button on top of it
             ClipRRect(
               borderRadius: BorderRadius.circular(20),
-              child: SizedBox(
-                height: 190,
-                width: double.infinity,
+              // CHANGED: taller 3:2 card (like Eat App) instead of height 190
+              child: AspectRatio(
+                aspectRatio: 3 / 2,
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
@@ -336,8 +336,6 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                       right: 12,
                       bottom: 12,
                       child: ElevatedButton(
-
-
                         onPressed: () {
                           Navigator.push(
                             context,
