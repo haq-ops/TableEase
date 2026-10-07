@@ -327,7 +327,7 @@ class _StaffTablesScreenState extends State<StaffTablesScreen> {
     );
   }
 
-  // One coloured table box in the grid
+  // One coloured table box in the grid (Figma screen 15)
   Widget _tableTile(List<_TableInfo> tables, _TableInfo table) {
     final Color color = _colorOf(table.status);
     final Color textColor = _textColorOf(table.status);
@@ -338,7 +338,10 @@ class _StaffTablesScreenState extends State<StaffTablesScreen> {
           '${table.seats} seats',
       child: Material(
         color: color,
-        borderRadius: BorderRadius.circular(16),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: Colors.black.withValues(alpha: 0.08)),
+        ),
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
           onTap: () => _showStatusPopup(tables, table),
@@ -357,7 +360,8 @@ class _StaffTablesScreenState extends State<StaffTablesScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
+                  // a slightly darker shade of the tile colour
+                  color: Colors.black.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -373,7 +377,10 @@ class _StaffTablesScreenState extends State<StaffTablesScreen> {
               const SizedBox(height: 6),
               Text(
                 '${table.seats} seats',
-                style: TextStyle(fontSize: 11, color: textColor),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: textColor.withValues(alpha: 0.9),
+                ),
               ),
             ],
           ),
@@ -534,19 +541,24 @@ class _StaffTablesScreenState extends State<StaffTablesScreen> {
   }
 }
 
-// Green = free, red = occupied, amber = reserved
+// Table status colours from the Figma design (screen 15)
+const Color _freeColor = Color(0xFF10B981); // green
+const Color _occupiedColor = Color(0xFFF43F5E); // red
+const Color _reservedColor = Color(0xFFFBBF24); // yellow
+
+// Green = free, red = occupied, yellow = reserved
 Color _colorOf(String status) {
   switch (status) {
     case 'occupied':
-      return AppColors.danger;
+      return _occupiedColor;
     case 'reserved':
-      return AppColors.warning;
+      return _reservedColor;
     default:
-      return AppColors.success;
+      return _freeColor;
   }
 }
 
-// Dark text on amber is easier to read than white
+// Dark text on yellow is easier to read than white
 Color _textColorOf(String status) {
   return status == 'reserved' ? AppColors.textDark : Colors.white;
 }
