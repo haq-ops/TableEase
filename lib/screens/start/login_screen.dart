@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../customer/customer_main_screen.dart';
 import 'create_account_screen.dart';
+import '../staff/staff_main_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   // The role picked on the "Who are you?" screen
@@ -98,8 +99,14 @@ class _LoginScreenState extends State<LoginScreen> {
           MaterialPageRoute(builder: (context) => const CustomerMainScreen()),
               (route) => false,
         );
+      } else if (widget.role == 'staff') {
+        // Open the staff app and clear the login screens
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const StaffMainScreen()),
+              (route) => false,
+        );
       } else {
-        // Staff and Admin home screens are connected after they are merged
+        // Admin home screen is connected after it is merged
         _showMessage('Login successful. $_roleName screens are coming next.');
       }
     } on FirebaseAuthException catch (e) {
