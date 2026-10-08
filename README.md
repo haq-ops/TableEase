@@ -107,13 +107,7 @@ flutter build apk --release --split-per-abi
 
 Most phones use `build/app/outputs/flutter-apk/app-arm64-v8a-release.apk`.
 
-### Test accounts
 
-| Role | Email | Password |
-|---|---|---|
-| Customer | *add here* | *add here* |
-| Staff | *add here* | *add here* |
-| Admin | *add here* | *add here* |
 
 ---
 
