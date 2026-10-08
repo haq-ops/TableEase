@@ -46,60 +46,44 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     return Scaffold(
       // IndexedStack keeps each tab's state when switching tabs
       body: IndexedStack(index: _currentTab, children: tabs),
+      // Same bottom navigation bar style as the customer and staff apps
       bottomNavigationBar: Container(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.border)),
         ),
-        // The Requests tab shows a live badge with the pending count
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: pendingRequestsStream(),
-          builder: (context, snapshot) {
-            final int pending = snapshot.data?.docs.length ?? 0;
+        child: BottomNavigationBar(
+          currentIndex: _currentTab,
+          onTap: _openTab,
+          type: BottomNavigationBarType.fixed,
+          backgroundColor: AppColors.background,
+          selectedItemColor: AppColors.primary,
+          unselectedItemColor: AppColors.textGrey,
+          selectedFontSize: 11,
+          unselectedFontSize: 11,
+          elevation: 0,
 
-            return BottomNavigationBar(
-              currentIndex: _currentTab,
-              onTap: _openTab,
-              type: BottomNavigationBarType.fixed,
-              backgroundColor: AppColors.background,
-              selectedItemColor: AppColors.primary,
-              unselectedItemColor: AppColors.textGrey,
-              selectedFontSize: 11,
-              unselectedFontSize: 11,
-              elevation: 0,
-              items: [
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard_outlined),
-                  activeIcon: Icon(Icons.dashboard),
-                  label: 'Dashboard',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.storefront_outlined),
-                  activeIcon: Icon(Icons.storefront),
-                  label: 'Restaurants',
-                ),
-                BottomNavigationBarItem(
-                  icon: Badge(
-                    isLabelVisible: pending > 0,
-                    label: Text('$pending'),
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.list_alt_outlined),
-                  ),
-                  activeIcon: Badge(
-                    isLabelVisible: pending > 0,
-                    label: Text('$pending'),
-                    backgroundColor: AppColors.primary,
-                    child: const Icon(Icons.list_alt),
-                  ),
-                  label: 'Requests',
-                ),
-                const BottomNavigationBarItem(
-                  icon: Icon(Icons.person_outline),
-                  activeIcon: Icon(Icons.person),
-                  label: 'Profile',
-                ),
-              ],
-            );
-          },
+          // Solid icons, same look as the customer and staff nav bars
+          items: const [
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Dashboard',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.store),
+              label: 'Restaurants',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.assignment),
+              label: 'Requests',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.person),
+              label: 'Profile',
+            ),
+          ],
+
+
+
         ),
       ),
     );
@@ -175,7 +159,7 @@ class AdminHeader extends StatelessWidget {
               color: AppColors.textDark,
             ),
             onPressed: onBell ??
-                () {
+                    () {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('No new alerts')),
                   );
