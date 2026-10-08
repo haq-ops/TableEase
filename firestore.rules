@@ -1,0 +1,83 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '');
+    }
+    function isStaff() {            // staff or admin
+      return signedIn() && myRole() in ['staff', 'admin'];
+    }
+    function isAdmin() {
+      return signedIn() && myRole() == 'admin';
+    }
+    function ownsNew() {            // new document belongs to me
+      return signedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+    }
+    function ownsOld() {            // existing document belongs to me
+      return signedIn() && resource.data.get('userId', '') == request.auth.uid;
+    }
+
+    // ---------- Users ----------
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && request.auth.uid == userId
+                    && request.resource.data.get('role', '') in ['customer', 'staff', 'admin'];
+      // Users can edit their profile but cannot change their own role
+      allow update: if (signedIn() && request.auth.uid == userId
+                    && request.resource.data.get('role', '') == resource.data.get('role', ''))
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Restaurants ----------
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // Staff can edit everything; customers can only change live counters
+      allow update: if isStaff()
+                    || (signedIn() && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['tablesAvailable', 'waitMinutes']));
+
+      match /tables/{tableId} {
+        allow read: if signedIn();
+        allow write: if isStaff();
+      }
+    }
+
+    // ---------- Queues ----------
+    match /queues/{queueId} {
+      allow read: if signedIn();
+      allow create: if ownsNew() || isStaff();        // customer join or staff walk-in
+      allow update, delete: if ownsOld() || isStaff();
+    }
+
+    // ---------- Bookings ----------
+    match /bookings/{bookingId} {
+      allow read: if ownsOld() || isStaff();
+      allow create: if ownsNew();
+      allow update: if ownsOld() || isStaff();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Restaurant registration requests ----------
+    // Anyone can send a registration (screen 21), but only as "pending".
+    // Only admins can read, approve or reject them (screen 22).
+    match /restaurant_requests/{requestId} {
+      allow create: if request.resource.data.get('status', '') == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- Payments ----------
+    match /payments/{paymentId} {
+      allow read: if ownsOld() || isStaff();
+      allow create: if signedIn();
+      allow update: if ownsOld() || isStaff();
+      allow delete: if isAdmin();
+    }
+  }
+}
