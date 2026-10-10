@@ -26,6 +26,11 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hidePassword = true;
   bool _isLoading = false;
 
+  // Staff only: the restaurant this staff member works at
+  String? _restaurantId;
+  late final Future<QuerySnapshot<Map<String, dynamic>>> _restaurantsFuture =
+  FirebaseFirestore.instance.collection('restaurants').orderBy('name').get();
+
   // Turns the role code into a readable name
   String get _roleName {
     switch (widget.role) {
@@ -73,6 +78,12 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
 
+    // Staff must pick their restaurant first
+    if (widget.role == 'staff' && _restaurantId == null) {
+      _showMessage('Please select your restaurant.');
+      return;
+    }
+
     setState(() => _isLoading = true);
 
     try {
@@ -102,13 +113,23 @@ class _LoginScreenState extends State<LoginScreen> {
               (route) => false,
         );
       } else if (widget.role == 'staff') {
+        // WRITE: remember which restaurant this staff member works at
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(result.user!.uid)
+              .set({'restaurantId': _restaurantId}, SetOptions(merge: true));
+        } catch (e) {
+          _showMessage('Could not save your restaurant. Check your internet.');
+          return;
+        }
+        if (!mounted) return;
+
         // Open the staff app and clear the login screens
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const StaffMainScreen()),
               (route) => false,
         );
-
-
       } else {
         // Open the admin app and clear the login screens
         Navigator.of(context).pushAndRemoveUntil(
@@ -116,7 +137,6 @@ class _LoginScreenState extends State<LoginScreen> {
               (route) => false,
         );
       }
-
     } on FirebaseAuthException catch (e) {
       _showMessage(_errorText(e.code));
     } finally {
@@ -265,6 +285,51 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
+                      // Staff only: pick the restaurant
+                      if (widget.role == 'staff') ...[
+                        _label('RESTAURANT'),
+                        FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                          future: _restaurantsFuture,
+                          builder: (context, snapshot) {
+                            if (snapshot.hasError) {
+                              return const Text(
+                                'Could not load restaurants. Check your internet.',
+                                style: TextStyle(
+                                  color: Colors.red,
+                                  fontSize: 12,
+                                ),
+                              );
+                            }
+                            if (!snapshot.hasData) {
+                              return const LinearProgressIndicator();
+                            }
+                            final docs = snapshot.data!.docs;
+                            return DropdownButtonFormField<String>(
+                              initialValue: _restaurantId,
+                              isExpanded: true,
+                              hint: const Text('Select your restaurant'),
+                              items: [
+                                for (final restaurant in docs)
+                                  DropdownMenuItem(
+                                    value: restaurant.id,
+                                    child: Text(
+                                      (restaurant.data()['name'] ?? '')
+                                          .toString(),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                              ],
+                              onChanged: (value) =>
+                                  setState(() => _restaurantId = value),
+                              validator: (value) => value == null
+                                  ? 'Please select your restaurant'
+                                  : null,
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       // Email field (empty box, label above)
                       _label('EMAIL'),
                       TextFormField(
@@ -341,6 +406,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                             : const Text('Login'),
                       ),
+
                       // Staff only: link to register a new restaurant
                       if (widget.role == 'staff') ...[
                         const SizedBox(height: 12),
