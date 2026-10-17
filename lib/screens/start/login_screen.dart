@@ -69,35 +69,22 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  // Staff only: finds the restaurant this staff member was added to.
-  // The manager adds staff in staff_members/{email}.
+  // Staff only: checks that the manager added this email to a restaurant.
+  // (The staff screen loads the restaurant itself, so no extra reads here.)
   // Returns an error message, or null when everything is fine.
   Future<String?> _linkStaffRestaurant(User user) async {
-    final db = FirebaseFirestore.instance;
     final email = (user.email ?? _emailController.text).trim().toLowerCase();
 
     // READ: my staff membership
-    final member = await db.collection('staff_members').doc(email).get();
+    final member = await FirebaseFirestore.instance
+        .collection('staff_members')
+        .doc(email)
+        .get();
+
     if (!member.exists) {
       return "You haven't been added to a restaurant yet. "
           'Ask your manager to add your email.';
     }
-
-    final data = member.data()!;
-    final restaurantId = (data['restaurantId'] ?? '').toString();
-
-    // READ: make sure the restaurant still exists
-    final restaurant = await db.collection('restaurants').doc(restaurantId).get();
-    if (!restaurant.exists) {
-      return 'Your restaurant is no longer on TableEase. Please contact the admin.';
-    }
-
-    // WRITE: save the restaurant and staff role on my profile
-    await db.collection('users').doc(user.uid).set({
-      'restaurantId': restaurantId,
-      'staffRole': (data['role'] ?? 'staff').toString(),
-    }, SetOptions(merge: true));
-
     return null;
   }
 
@@ -125,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
-      // Staff: open only the restaurant the manager added them to
+      // Staff: only people the manager added can open the staff app
       if (widget.role == 'staff') {
         String? staffError;
         try {
