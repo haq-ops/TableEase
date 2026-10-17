@@ -26,11 +26,6 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hidePassword = true;
   bool _isLoading = false;
 
-  // Staff only: the restaurant this staff member works at
-  String? _restaurantId;
-  late final Future<QuerySnapshot<Map<String, dynamic>>> _restaurantsFuture =
-  FirebaseFirestore.instance.collection('restaurants').orderBy('name').get();
-
   // Turns the role code into a readable name
   String get _roleName {
     switch (widget.role) {
@@ -74,15 +69,41 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Staff only: finds the restaurant this staff member was added to.
+  // The manager adds staff in staff_members/{email}.
+  // Returns an error message, or null when everything is fine.
+  Future<String?> _linkStaffRestaurant(User user) async {
+    final db = FirebaseFirestore.instance;
+    final email = (user.email ?? _emailController.text).trim().toLowerCase();
+
+    // READ: my staff membership
+    final member = await db.collection('staff_members').doc(email).get();
+    if (!member.exists) {
+      return "You haven't been added to a restaurant yet. "
+          'Ask your manager to add your email.';
+    }
+
+    final data = member.data()!;
+    final restaurantId = (data['restaurantId'] ?? '').toString();
+
+    // READ: make sure the restaurant still exists
+    final restaurant = await db.collection('restaurants').doc(restaurantId).get();
+    if (!restaurant.exists) {
+      return 'Your restaurant is no longer on TableEase. Please contact the admin.';
+    }
+
+    // WRITE: save the restaurant and staff role on my profile
+    await db.collection('users').doc(user.uid).set({
+      'restaurantId': restaurantId,
+      'staffRole': (data['role'] ?? 'staff').toString(),
+    }, SetOptions(merge: true));
+
+    return null;
+  }
+
   // Logs the user in with Firebase
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
-
-    // Staff must pick their restaurant first
-    if (widget.role == 'staff' && _restaurantId == null) {
-      _showMessage('Please select your restaurant.');
-      return;
-    }
 
     setState(() => _isLoading = true);
 
@@ -104,6 +125,21 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Staff: open only the restaurant the manager added them to
+      if (widget.role == 'staff') {
+        String? staffError;
+        try {
+          staffError = await _linkStaffRestaurant(result.user!);
+        } catch (e) {
+          staffError = 'Could not load your restaurant. Check your internet.';
+        }
+        if (staffError != null) {
+          await FirebaseAuth.instance.signOut();
+          _showMessage(staffError);
+          return;
+        }
+      }
+
       if (!mounted) return;
 
       if (widget.role == 'customer') {
@@ -113,18 +149,6 @@ class _LoginScreenState extends State<LoginScreen> {
               (route) => false,
         );
       } else if (widget.role == 'staff') {
-        // WRITE: remember which restaurant this staff member works at
-        try {
-          await FirebaseFirestore.instance
-              .collection('users')
-              .doc(result.user!.uid)
-              .set({'restaurantId': _restaurantId}, SetOptions(merge: true));
-        } catch (e) {
-          _showMessage('Could not save your restaurant. Check your internet.');
-          return;
-        }
-        if (!mounted) return;
-
         // Open the staff app and clear the login screens
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const StaffMainScreen()),
@@ -285,51 +309,6 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Staff only: pick the restaurant
-                      if (widget.role == 'staff') ...[
-                        _label('RESTAURANT'),
-                        FutureBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                          future: _restaurantsFuture,
-                          builder: (context, snapshot) {
-                            if (snapshot.hasError) {
-                              return const Text(
-                                'Could not load restaurants. Check your internet.',
-                                style: TextStyle(
-                                  color: Colors.red,
-                                  fontSize: 12,
-                                ),
-                              );
-                            }
-                            if (!snapshot.hasData) {
-                              return const LinearProgressIndicator();
-                            }
-                            final docs = snapshot.data!.docs;
-                            return DropdownButtonFormField<String>(
-                              initialValue: _restaurantId,
-                              isExpanded: true,
-                              hint: const Text('Select your restaurant'),
-                              items: [
-                                for (final restaurant in docs)
-                                  DropdownMenuItem(
-                                    value: restaurant.id,
-                                    child: Text(
-                                      (restaurant.data()['name'] ?? '')
-                                          .toString(),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                              ],
-                              onChanged: (value) =>
-                                  setState(() => _restaurantId = value),
-                              validator: (value) => value == null
-                                  ? 'Please select your restaurant'
-                                  : null,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                      ],
-
                       // Email field (empty box, label above)
                       _label('EMAIL'),
                       TextFormField(
@@ -436,41 +415,44 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
 
             // Bottom part: link to Create Account
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: Divider(height: 1, color: AppColors.border),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Don't have an account? ",
-                    style: TextStyle(fontSize: 13, color: AppColors.textGrey),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              CreateAccountScreen(role: widget.role),
+            // (admins are created in the Firebase console, so no sign up)
+            if (widget.role != 'admin') ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(height: 1, color: AppColors.border),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account? ",
+                      style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                CreateAccountScreen(role: widget.role),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Sign up',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
                         ),
-                      );
-                    },
-                    child: const Text(
-                      'Sign up',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

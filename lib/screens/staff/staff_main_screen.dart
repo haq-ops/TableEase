@@ -3,9 +3,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../profile/profile_screen.dart';
+import '../start/login_screen.dart';
 import 'staff_bookings_screen.dart';
 import 'staff_queue_screen.dart';
 import 'staff_tables_screen.dart';
+import 'staff_team_screen.dart';
+
+// The logged-in staff member's restaurant, shared by the staff screens
+class StaffSession {
+  static String restaurantId = '';
+  static String restaurantName = '';
+  static bool isManager = false;
+}
 
 // Staff app: finds which restaurant this staff member works at,
 // then shows the 4 staff tabs with a bottom navigation bar
@@ -28,58 +37,72 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
     _loadRestaurant();
   }
 
-  // READ: the staff member's restaurant.
-  // 1. users/{uid}.restaurantId if it is set
-  // 2. otherwise "The Gallery Café" (the restaurant used in our designs)
-  // 3. otherwise the first restaurant in the collection
+  // READ: the restaurant this staff member was added to by the manager
+  // (staff_members/{email})
   Future<void> _loadRestaurant() async {
     try {
       final db = FirebaseFirestore.instance;
-      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final user = FirebaseAuth.instance.currentUser;
+      final email = (user?.email ?? '').trim().toLowerCase();
 
-      DocumentSnapshot<Map<String, dynamic>>? found;
-
-      if (uid != null) {
-        final user = await db.collection('users').doc(uid).get();
-        final savedId = user.data()?['restaurantId'];
-        if (savedId is String && savedId.isNotEmpty) {
-          final doc = await db.collection('restaurants').doc(savedId).get();
-          if (doc.exists) found = doc;
-        }
-      }
-
-      if (found == null) {
-        final gallery = await db
-            .collection('restaurants')
-            .where('name', isEqualTo: 'The Gallery Café')
-            .limit(1)
-            .get();
-        if (gallery.docs.isNotEmpty) found = gallery.docs.first;
-      }
-
-      if (found == null) {
-        final any = await db.collection('restaurants').limit(1).get();
-        if (any.docs.isNotEmpty) found = any.docs.first;
-      }
-
-      if (!mounted) return;
-
-      final restaurant = found;
-      if (restaurant == null) {
-        setState(() => _error = 'No restaurant found for this staff account.');
+      if (user == null || email.isEmpty) {
+        _showError('Please log in again.');
         return;
       }
 
-      setState(() {
-        _restaurantId = restaurant.id;
-        _restaurantName = (restaurant.data()?['name'] ?? '').toString();
-      });
-    } catch (e) {
+      final member = await db.collection('staff_members').doc(email).get();
+      if (!member.exists) {
+        _showError(
+          "You haven't been added to a restaurant yet. "
+              'Ask your manager to add your email.',
+        );
+        return;
+      }
+
+      final data = member.data()!;
+      final restaurantId = (data['restaurantId'] ?? '').toString();
+      if (restaurantId.isEmpty) {
+        _showError('Your restaurant is no longer on TableEase.');
+        return;
+      }
+
+      final restaurant =
+      await db.collection('restaurants').doc(restaurantId).get();
+      if (!restaurant.exists) {
+        _showError('Your restaurant is no longer on TableEase.');
+        return;
+      }
+
+      final name = (restaurant.data()?['name'] ?? '').toString();
+
+      // Shared with StaffHeader (Team button) and other staff screens
+      StaffSession.restaurantId = restaurantId;
+      StaffSession.restaurantName = name;
+      StaffSession.isManager = data['role'] == 'manager';
+
       if (!mounted) return;
       setState(() {
-        _error = 'Could not load your restaurant. Check your internet.';
+        _restaurantId = restaurantId;
+        _restaurantName = name;
+        _error = null;
       });
+    } catch (e) {
+      _showError('Could not load your restaurant. Check your internet.');
     }
+  }
+
+  void _showError(String text) {
+    if (!mounted) return;
+    setState(() => _error = text);
+  }
+
+  Future<void> _logOut() async {
+    await FirebaseAuth.instance.signOut();
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (context) => const LoginScreen(role: 'staff')),
+          (route) => false,
+    );
   }
 
   @override
@@ -97,6 +120,12 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const Icon(
+                  Icons.storefront_outlined,
+                  size: 48,
+                  color: AppColors.textGrey,
+                ),
+                const SizedBox(height: 12),
                 Text(
                   _error!,
                   textAlign: TextAlign.center,
@@ -109,6 +138,10 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
                     _loadRestaurant();
                   },
                   child: const Text('Try again'),
+                ),
+                TextButton(
+                  onPressed: _logOut,
+                  child: const Text('Log out'),
                 ),
               ],
             ),
@@ -172,7 +205,7 @@ class _StaffMainScreenState extends State<StaffMainScreen> {
   }
 }
 
-// Top bar used on every staff tab: logo, app name and bell
+// Top bar used on every staff tab: logo, app name, Team (managers) and bell
 class StaffHeader extends StatelessWidget {
   const StaffHeader({super.key});
 
@@ -218,6 +251,24 @@ class StaffHeader extends StatelessWidget {
             ),
           ),
           const Spacer(),
+          // Managers only: add or remove staff
+          if (StaffSession.isManager)
+            IconButton(
+              tooltip: 'Team',
+              icon: const Icon(
+                Icons.group_outlined,
+                color: AppColors.textDark,
+              ),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StaffTeamScreen(
+                    restaurantId: StaffSession.restaurantId,
+                    restaurantName: StaffSession.restaurantName,
+                  ),
+                ),
+              ),
+            ),
           IconButton(
             tooltip: 'Alerts',
             icon: const Icon(
