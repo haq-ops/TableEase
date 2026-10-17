@@ -4,6 +4,9 @@ import 'package:flutter/material.dart';
 import '../../theme/app_colors.dart';
 import '../customer/customer_main_screen.dart';
 import 'create_account_screen.dart';
+import '../staff/staff_main_screen.dart';
+import '../admin/admin_main_screen.dart';
+import '../admin/restaurant_registration_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   // The role picked on the "Who are you?" screen
@@ -66,6 +69,38 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  // Staff only: finds the restaurant this staff member was added to.
+  // The manager adds staff in staff_members/{email}.
+  // Returns an error message, or null when everything is fine.
+  Future<String?> _linkStaffRestaurant(User user) async {
+    final db = FirebaseFirestore.instance;
+    final email = (user.email ?? _emailController.text).trim().toLowerCase();
+
+    // READ: my staff membership
+    final member = await db.collection('staff_members').doc(email).get();
+    if (!member.exists) {
+      return "You haven't been added to a restaurant yet. "
+          'Ask your manager to add your email.';
+    }
+
+    final data = member.data()!;
+    final restaurantId = (data['restaurantId'] ?? '').toString();
+
+    // READ: make sure the restaurant still exists
+    final restaurant = await db.collection('restaurants').doc(restaurantId).get();
+    if (!restaurant.exists) {
+      return 'Your restaurant is no longer on TableEase. Please contact the admin.';
+    }
+
+    // WRITE: save the restaurant and staff role on my profile
+    await db.collection('users').doc(user.uid).set({
+      'restaurantId': restaurantId,
+      'staffRole': (data['role'] ?? 'staff').toString(),
+    }, SetOptions(merge: true));
+
+    return null;
+  }
+
   // Logs the user in with Firebase
   Future<void> _login() async {
     if (!_formKey.currentState!.validate()) return;
@@ -90,21 +125,44 @@ class _LoginScreenState extends State<LoginScreen> {
         return;
       }
 
+      // Staff: open only the restaurant the manager added them to
+      if (widget.role == 'staff') {
+        String? staffError;
+        try {
+          staffError = await _linkStaffRestaurant(result.user!);
+        } catch (e) {
+          staffError = 'Could not load your restaurant. Check your internet.';
+        }
+        if (staffError != null) {
+          await FirebaseAuth.instance.signOut();
+          _showMessage(staffError);
+          return;
+        }
+      }
+
+      if (!mounted) return;
+
       if (widget.role == 'customer') {
-        if (!mounted) return;
-        // Open Customer Home and remove Login from the back history
+        // Open the customer app and clear the login screens
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const CustomerMainScreen()),
               (route) => false,
         );
+      } else if (widget.role == 'staff') {
+        // Open the staff app and clear the login screens
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const StaffMainScreen()),
+              (route) => false,
+        );
       } else {
-        // Staff and admin home screens are built by other members
-        _showMessage('Login successful');
+        // Open the admin app and clear the login screens
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AdminMainScreen()),
+              (route) => false,
+        );
       }
     } on FirebaseAuthException catch (e) {
       _showMessage(_errorText(e.code));
-    } catch (e) {
-      _showMessage('Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -251,15 +309,13 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      // Email field
+                      // Email field (empty box, label above)
                       _label('EMAIL'),
                       TextFormField(
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. kasun.perera@gmail.com',
-                        ),
+                        decoration: const InputDecoration(),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter your email';
@@ -272,13 +328,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(height: 16),
 
-                      // Password field with Show / Hide
+                      // Password field with Show / Hide (empty box, label above)
                       _label('PASSWORD'),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _hidePassword,
                         decoration: InputDecoration(
-                          hintText: 'Enter your password',
                           suffixIcon: TextButton(
                             onPressed: () {
                               setState(() => _hidePassword = !_hidePassword);
@@ -330,6 +385,29 @@ class _LoginScreenState extends State<LoginScreen> {
                         )
                             : const Text('Login'),
                       ),
+
+                      // Staff only: link to register a new restaurant
+                      if (widget.role == 'staff') ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: TextButton(
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                const RestaurantRegistrationScreen(),
+                              ),
+                            ),
+                            child: const Text(
+                              'New restaurant? Register here',
+                              style: TextStyle(
+                                color: AppColors.primary,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -337,41 +415,44 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
 
             // Bottom part: link to Create Account
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 24),
-              child: Divider(height: 1, color: AppColors.border),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Text(
-                    "Don't have an account? ",
-                    style: TextStyle(fontSize: 13, color: AppColors.textGrey),
-                  ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) =>
-                              CreateAccountScreen(role: widget.role),
+            // (admins are created in the Firebase console, so no sign up)
+            if (widget.role != 'admin') ...[
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24),
+                child: Divider(height: 1, color: AppColors.border),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      "Don't have an account? ",
+                      style: TextStyle(fontSize: 13, color: AppColors.textGrey),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                CreateAccountScreen(role: widget.role),
+                          ),
+                        );
+                      },
+                      child: const Text(
+                        'Sign up',
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w600,
                         ),
-                      );
-                    },
-                    child: const Text(
-                      'Sign up',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w600,
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ],
         ),
       ),

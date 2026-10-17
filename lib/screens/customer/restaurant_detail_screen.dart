@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_colors.dart';
 import 'book_table_screen.dart';
+import '../queue/join_queue_sheet.dart';
+import 'customer_main_screen.dart';
 
 class RestaurantDetailScreen extends StatefulWidget {
   // The Firestore id of the restaurant to show
@@ -46,6 +48,37 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
       _showMessage('Could not open this link.');
     }
   }
+
+  // Opens the Join Queue sheet. After joining, shows the Queue tab.
+  Future<void> _openJoinQueue(String name, int waitMinutes) async {
+    final navigator = Navigator.of(context);
+
+    final joined = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.background,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => JoinQueueSheet(
+        restaurantId: widget.restaurantId,
+        restaurantName: name,
+        waitMinutes: waitMinutes,
+      ),
+    );
+
+    if (joined == true) {
+      // Clear the screens and open the customer app on the Queue tab
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(
+          builder: (context) => const CustomerMainScreen(initialTab: 1),
+        ),
+            (route) => false,
+      );
+    }
+  }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -283,10 +316,10 @@ class _RestaurantDetailScreenState extends State<RestaurantDetailScreen> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: () {
-                            // Next step: join this restaurant's queue
-                            _showMessage('Queue screen is coming next');
-                          },
+
+                          // Opens the Join Queue sheet for this restaurant
+                          onPressed: () => _openJoinQueue(name, wait),
+
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.primary,
                             side: const BorderSide(color: AppColors.primary),

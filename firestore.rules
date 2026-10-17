@@ -1,0 +1,131 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- Helpers ----------
+    function signedIn() {
+      return request.auth != null;
+    }
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', '');
+    }
+    function isStaff() {            // staff or admin
+      return signedIn() && myRole() in ['staff', 'admin'];
+    }
+    function isAdmin() {
+      return signedIn() && myRole() == 'admin';
+    }
+    function ownsNew() {            // new document belongs to me
+      return signedIn() && request.resource.data.get('userId', '') == request.auth.uid;
+    }
+    function ownsOld() {            // existing document belongs to me
+      return signedIn() && resource.data.get('userId', '') == request.auth.uid;
+    }
+
+    // ---------- Staff membership ----------
+    // staff_members/{email} is created by the restaurant manager (or admin).
+    // It decides which restaurant a staff member can manage.
+    function myEmail() {
+      return request.auth.token.email.lower();
+    }
+    function myMembershipPath() {
+      return /databases/$(database)/documents/staff_members/$(myEmail());
+    }
+    function isMember() {
+      return signedIn() && ('email' in request.auth.token) && exists(myMembershipPath());
+    }
+    function myMembership() {
+      return get(myMembershipPath()).data;
+    }
+    // Staff or manager of this restaurant, or an admin
+    function worksAt(restaurantId) {
+      return isAdmin()
+        || (isStaff() && isMember() && myMembership().restaurantId == restaurantId);
+    }
+    // Manager of this restaurant, or an admin
+    function managerOf(restaurantId) {
+      return isAdmin()
+        || (isStaff() && isMember()
+            && myMembership().role == 'manager'
+            && myMembership().restaurantId == restaurantId);
+    }
+
+    // ---------- Users ----------
+    match /users/{userId} {
+      allow read: if signedIn();
+      // Sign up can only create customer or staff accounts.
+      // Admin accounts are created in the Firebase console.
+      allow create: if signedIn() && request.auth.uid == userId
+                    && request.resource.data.get('role', '') in ['customer', 'staff'];
+      // Users can edit their profile but cannot change their own role
+      allow update: if (signedIn() && request.auth.uid == userId
+                    && request.resource.data.get('role', '') == resource.data.get('role', ''))
+                    || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Staff members (who works where) ----------
+    match /staff_members/{email} {
+      // I can read my own membership; managers can read their team
+      allow get: if (signedIn() && ('email' in request.auth.token) && email == myEmail())
+                 || managerOf(resource.data.restaurantId);
+      allow list: if managerOf(resource.data.restaurantId);
+      // Managers can add normal staff to their own restaurant; admins can add anyone
+      allow create: if request.resource.data.get('email', '') == email
+                    && (isAdmin()
+                        || (managerOf(request.resource.data.restaurantId)
+                            && request.resource.data.role == 'staff'));
+      allow update: if isAdmin();
+      // Managers can remove their own staff (not other managers)
+      allow delete: if isAdmin()
+                    || (managerOf(resource.data.restaurantId) && resource.data.role == 'staff');
+    }
+
+    // ---------- Restaurants ----------
+    match /restaurants/{restaurantId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      // Its own staff can edit it; customers can only change live counters
+      allow update: if worksAt(restaurantId)
+                    || (signedIn() && request.resource.data.diff(resource.data)
+                          .affectedKeys().hasOnly(['tablesAvailable', 'waitMinutes']));
+
+      match /tables/{tableId} {
+        allow read: if signedIn();
+        allow write: if worksAt(restaurantId);
+      }
+    }
+
+    // ---------- Queues ----------
+    match /queues/{queueId} {
+      allow read: if signedIn();
+      // Customer joins, or staff of that restaurant adds a walk-in
+      allow create: if ownsNew()
+                    || worksAt(request.resource.data.get('restaurantId', ''));
+      allow update, delete: if ownsOld()
+                    || worksAt(resource.data.get('restaurantId', ''));
+    }
+
+    // ---------- Bookings ----------
+    match /bookings/{bookingId} {
+      allow read: if ownsOld() || worksAt(resource.data.get('restaurantId', ''));
+      allow create: if ownsNew();
+      allow update: if ownsOld() || worksAt(resource.data.get('restaurantId', ''));
+      allow delete: if isAdmin();
+    }
+
+    // ---------- Restaurant registration requests ----------
+    match /restaurant_requests/{requestId} {
+      allow create: if request.resource.data.get('status', '') == 'pending';
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ---------- Payments ----------
+    match /payments/{paymentId} {
+      allow read: if ownsOld() || isStaff();
+      allow create: if signedIn();
+      allow update: if ownsOld() || isStaff();
+      allow delete: if isAdmin();
+    }
+  }
+}

@@ -201,9 +201,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         controller: _nameController,
                         textCapitalization: TextCapitalization.words,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          hintText: 'e.g. Kasun Perera',
-                        ),
+                        decoration: const InputDecoration(),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter your name';
@@ -219,9 +217,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          hintText: 'kasun.perera@gmail.com',
-                        ),
+                        decoration: const InputDecoration(),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
                             return 'Please enter your email';
@@ -240,9 +236,7 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
                         textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          hintText: '+94 77 123 4567',
-                        ),
+                        decoration: const InputDecoration(),
                         validator: (value) {
                           final digits = (value ?? '').replaceAll(
                             RegExp(r'[^0-9]'),
@@ -257,13 +251,12 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                       const SizedBox(height: 14),
 
                       // Password
-                      _label('PASSWORD'),
+                      _label('PASSWORD (MIN. 8 CHARACTERS)'),
                       TextFormField(
                         controller: _passwordController,
                         obscureText: _hidePassword,
                         textInputAction: TextInputAction.next,
                         decoration: InputDecoration(
-                          hintText: 'At least 8 characters',
                           suffixIcon: _showHideButton(_hidePassword, () {
                             setState(() => _hidePassword = !_hidePassword);
                           }),
@@ -283,7 +276,6 @@ class _CreateAccountScreenState extends State<CreateAccountScreen> {
                         controller: _confirmController,
                         obscureText: _hideConfirm,
                         decoration: InputDecoration(
-                          hintText: 'Re-enter password',
                           suffixIcon: _showHideButton(_hideConfirm, () {
                             setState(() => _hideConfirm = !_hideConfirm);
                           }),
